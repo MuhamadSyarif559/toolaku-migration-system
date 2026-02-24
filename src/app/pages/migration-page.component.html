@@ -1,0 +1,274 @@
+<main class="page">
+  <section class="panel">
+    <h1>Toolaku Excel Migration System</h1>
+    <p class="intro">
+      Upload source and target files, choose sheets, configure mapping rules, validate, and migrate.
+    </p>
+
+    <div class="upload-grid">
+      <label class="upload-box" for="sourceFile">
+        <span class="label-title">Source Excel</span>
+        <span class="hint">Choose the file with data to move</span>
+        <input
+          id="sourceFile"
+          type="file"
+          accept=".xlsx,.xls"
+          (change)="onSourceFileSelected($event)"
+        />
+      </label>
+
+      <label class="upload-box" for="targetFile">
+        <span class="label-title">Target Excel</span>
+        <span class="hint">Choose the file to receive migrated data</span>
+        <input
+          id="targetFile"
+          type="file"
+          accept=".xlsx,.xls"
+          (change)="onTargetFileSelected($event)"
+        />
+      </label>
+    </div>
+
+    @if (errorMessage) {
+      <p class="message error">{{ errorMessage }}</p>
+    }
+
+    @if (infoMessage) {
+      <p class="message info">{{ infoMessage }}</p>
+    }
+
+    <div class="sheet-grid">
+      <div class="sheet-select">
+        <label for="sourceSheet">Source table (sheet)</label>
+        <select
+          id="sourceSheet"
+          [(ngModel)]="selectedSourceSheet"
+          [disabled]="!sourceWorkbook"
+          (change)="onSourceSheetChange()"
+        >
+          <option value="">Select source sheet</option>
+          @for (sheet of sourceWorkbook?.sheets ?? []; track sheet.name) {
+            <option [value]="sheet.name">{{ sheet.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="sheet-select">
+        <label for="targetSheet">Target table (sheet)</label>
+        <select
+          id="targetSheet"
+          [(ngModel)]="selectedTargetSheet"
+          [disabled]="!targetWorkbook"
+          (change)="onTargetSheetChange()"
+        >
+          <option value="">Select target sheet</option>
+          @for (sheet of targetWorkbook?.sheets ?? []; track sheet.name) {
+            <option [value]="sheet.name">{{ sheet.name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <section class="options-grid">
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="runBatchMode" />
+        Batch migrate all matching sheet names
+      </label>
+
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="useKeyMergeMode" />
+        Merge/update by key column
+      </label>
+
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="downloadBackup" />
+        Download target backup file
+      </label>
+
+      <div class="sheet-select">
+        <label for="sourceKey">Source key column</label>
+        <select id="sourceKey" [(ngModel)]="sourceKeyColumn" [disabled]="!sourceSheet || !useKeyMergeMode">
+          <option value="">None</option>
+          @for (header of sourceSheet?.headers ?? []; track header) {
+            <option [value]="header">{{ header }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="sheet-select">
+        <label for="targetKey">Target key column</label>
+        <select id="targetKey" [(ngModel)]="targetKeyColumn" [disabled]="!targetSheet || !useKeyMergeMode">
+          <option value="">None</option>
+          @for (header of targetSheet?.headers ?? []; track header) {
+            <option [value]="header">{{ header }}</option>
+          }
+        </select>
+      </div>
+    </section>
+
+    @if (readyForMapping) {
+      <section class="mapping-section">
+        <h2>Column Mapping Rules</h2>
+
+        @if (!sourceSheet || !targetSheet) {
+          <p class="message info">
+            Select one source sheet and one target sheet to display mapping rules.
+          </p>
+        } @else if (!sourceSheet.headers.length || !targetSheet.headers.length) {
+          <p class="message error">
+            One selected sheet has no detected header row. Make sure first non-empty row contains column names.
+          </p>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Source</th>
+                  <th>Default</th>
+                  <th>Fallback</th>
+                  <th>Compare</th>
+                  <th>Transform</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (mapping of mappings; track mapping.targetColumn) {
+                  <tr>
+                    <td><strong>{{ mapping.targetColumn }}</strong></td>
+                    <td>
+                      <select [(ngModel)]="mapping.sourceColumn">
+                        <option value="">Skip</option>
+                        @for (sourceColumn of sourceSheet.headers; track sourceColumn) {
+                          <option [value]="sourceColumn">{{ sourceColumn }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" [(ngModel)]="mapping.defaultValue" placeholder="Optional default" />
+                    </td>
+                    <td>
+                      <select [(ngModel)]="mapping.fallbackMode">
+                        @for (mode of fallbackModes; track mode.value) {
+                          <option [value]="mode.value">{{ mode.label }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        [(ngModel)]="mapping.fallbackCompareValue"
+                        [disabled]="mapping.fallbackMode !== 'when_source_equals'"
+                        placeholder="Match source value"
+                      />
+                    </td>
+                    <td>
+                      <select [(ngModel)]="mapping.transformRule">
+                        @for (rule of transformRules; track rule.value) {
+                          <option [value]="rule.value">{{ rule.label }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <select [(ngModel)]="mapping.targetType">
+                        @for (type of targetTypes; track type.value) {
+                          <option [value]="type.value">{{ type.label }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td class="center">
+                      <input type="checkbox" [(ngModel)]="mapping.required" />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      @if (summary) {
+        <section class="summary-grid">
+          <article class="card">
+            <h3>Migration Summary</h3>
+            <p>Processed: {{ summary.processed }}</p>
+            <p>Migrated: {{ summary.migrated }}</p>
+            <p>Failed: {{ summary.failed }}</p>
+            <p>Skipped: {{ summary.skipped }}</p>
+          </article>
+
+          <article class="card">
+            <h3>Column Fill Rate (%)</h3>
+            <pre>{{ summary.fillRates | json }}</pre>
+          </article>
+        </section>
+      }
+
+      @if (validationIssues.length) {
+        <section class="report-section">
+          <h3>Validation Issues ({{ validationIssues.length }})</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sheet</th>
+                  <th>Row</th>
+                  <th>Column</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (issue of validationIssues.slice(0, 100); track $index) {
+                  <tr>
+                    <td>{{ issue.sheet }}</td>
+                    <td>{{ issue.row }}</td>
+                    <td>{{ issue.column }}</td>
+                    <td>{{ issue.reason }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      @if (diffPreview.length) {
+        <section class="report-section">
+          <h3>Before/After Diff Preview</h3>
+          <pre>{{ diffPreview.slice(0, 10) | json }}</pre>
+        </section>
+      }
+
+      @if (auditLog.length) {
+        <section class="report-section">
+          <h3>Session Audit Log</h3>
+          <pre>{{ auditLog.slice(0, 10) | json }}</pre>
+        </section>
+      }
+
+      @if (sourceSheet && targetSheet) {
+        <section class="preview-grid">
+          <div>
+            <h3>Source Preview (first 3 rows)</h3>
+            <pre>{{ sourceSheet.rows.slice(0, 3) | json }}</pre>
+          </div>
+          <div>
+            <h3>Target Preview (first 3 rows)</h3>
+            <pre>{{ targetSheet.rows.slice(0, 3) | json }}</pre>
+          </div>
+        </section>
+      }
+    }
+
+    <div class="actions">
+      <button type="button" (click)="migrate()" [disabled]="!canMigrate() || busy">
+        {{ busy ? 'Working...' : 'Migrate and Download' }}
+      </button>
+
+      <button type="button" class="secondary" (click)="downloadErrorReport()" [disabled]="!errorRows.length">
+        Download Error Rows
+      </button>
+    </div>
+  </section>
+</main>

@@ -1,0 +1,158 @@
+<main class="page">
+  <section class="panel">
+    <h1>Integrate With Stored Procedure</h1>
+    <p class="intro">
+      Upload your stored procedure SQL + Excel file, map parameters, then generate executable SQL script. No API call is used.
+    </p>
+
+    <h2>Step 1: Upload Stored Procedure</h2>
+    <div class="grid">
+      <div class="field">
+        <label>SP Type</label>
+        <select [(ngModel)]="spMode">
+          <option value="stored_procedure">Stored Procedure</option>
+          <option value="sharepoint">SharePoint</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Operation Name (optional)</label>
+        <input type="text" [(ngModel)]="operationName" placeholder="ClassRefUpsert" />
+      </div>
+
+      <div class="field">
+        <label>Stored Procedure SQL File</label>
+        <input type="file" accept=".sql,.txt" (change)="onStoredProcedureFileSelected($event)" />
+      </div>
+    </div>
+
+    @if (storedProcedureFileName) {
+      <p class="message info">
+        Loaded SP file: {{ storedProcedureFileName }} | Procedure: <code>{{ procedureName || '-' }}</code> |
+        Parameters: {{ procedureParameters.length }}
+      </p>
+    }
+
+    <section class="rules">
+      <h2>Step 2: Upload Excel</h2>
+
+      <div class="field">
+        <label>Excel File</label>
+        <input type="file" accept=".xlsx,.xls" (change)="onExcelFileSelected($event)" />
+      </div>
+
+      <div class="grid two-col">
+        <div class="field">
+          <label>Sheet</label>
+          <select [(ngModel)]="selectedSheet" [disabled]="!workbook" (change)="onSheetChange()">
+            <option value="">Select sheet</option>
+            @for (sheet of workbook?.sheets ?? []; track sheet.name) {
+              <option [value]="sheet.name">{{ sheet.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Start Row</label>
+          <input type="number" min="2" [(ngModel)]="startRow" />
+          <small>Row 1 is treated as header.</small>
+        </div>
+      </div>
+
+      @if (workbook) {
+        <p class="message info">
+          Loaded: {{ workbook.fileName }} | Rows in sheet: {{ selectedSheetData?.rows?.length ?? 0 }}
+        </p>
+      }
+    </section>
+
+    <section class="rules">
+      <h2>Step 3: Parameter Mapping</h2>
+      <pre class="query-preview">{{ queryPreview }}</pre>
+
+      @if (fieldBindings.length) {
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Use</th>
+                <th>SP Parameter</th>
+                <th>Excel Column</th>
+                <th>Default Value (optional)</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (binding of fieldBindings; track binding.targetField) {
+                <tr>
+                  <td>
+                    <input type="checkbox" [(ngModel)]="binding.enabled" />
+                  </td>
+                  <td>
+                    <input type="text" [(ngModel)]="binding.targetField" placeholder="e.g. @ClassCode" />
+                  </td>
+                  <td>
+                    <select [(ngModel)]="binding.sourceField">
+                      <option value="">(No source column)</option>
+                      @for (header of excelHeaders; track header) {
+                        <option [value]="header">{{ header }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <input type="text" [(ngModel)]="binding.defaultValue" placeholder="Used when cell is empty" />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="message info">No parameters to map yet. Upload SP and Excel first.</p>
+      }
+    </section>
+
+    <section class="rules">
+      <h2>Step 4: Generate SQL</h2>
+      <div class="actions">
+        <button type="button" class="secondary" (click)="generateSqlScript()" [disabled]="busy">
+          {{ busy ? 'Working...' : 'Generate SQL Script' }}
+        </button>
+      </div>
+
+      @if (previewRows.length) {
+        <div>
+          <h3>Preview Mapped Rows (first 3)</h3>
+          <pre>{{ previewRows | json }}</pre>
+        </div>
+      }
+
+      @if (generatedSql) {
+        <div>
+          <h3>Generated SQL</h3>
+          <pre>{{ generatedSql }}</pre>
+        </div>
+      }
+    </section>
+
+    @if (warningMessage) {
+      <p class="message error">{{ warningMessage }}</p>
+    }
+
+    @if (infoMessage) {
+      <p class="message info">{{ infoMessage }}</p>
+    }
+
+    @if (executionSummary) {
+      <p class="message info">{{ executionSummary }}</p>
+    }
+
+    <section class="notes">
+      <h3>Important</h3>
+      <ul>
+        <li>This page does not call any API.</li>
+        <li>Upload a SQL file that contains <code>CREATE PROCEDURE</code> so parameters can be auto-detected.</li>
+        <li>All active mapping rows are included in each generated <code>EXEC</code> statement.</li>
+      </ul>
+    </section>
+  </section>
+</main>
