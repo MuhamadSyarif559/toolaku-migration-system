@@ -65,7 +65,11 @@ export class IntegrateSpPageComponent {
       this.storedProcedureFileName = file.name;
       this.analyzeStoredProcedure();
       this.rebuildFieldBindings();
-      this.infoMessage = `Loaded stored procedure file: ${file.name}`;
+      if (this.procedureName) {
+        this.infoMessage = `Loaded stored procedure file: ${file.name}`;
+      } else {
+        this.warningMessage = 'File uploaded, but no CREATE/ALTER PROCEDURE statement was detected.';
+      }
     } catch (error) {
       this.warningMessage = this.toErrorMessage(error, 'Could not read stored procedure file.');
       this.storedProcedureText = '';
@@ -211,21 +215,24 @@ export class IntegrateSpPageComponent {
   }
 
   private extractProcedureName(sql: string): string {
-    const createMatch = sql.match(/create\s+(?:or\s+alter\s+)?proc(?:edure)?\s+([\[\]\w\.]+)/i);
-    if (createMatch?.[1]) {
-      return createMatch[1].trim();
+    const cleaned = sql.replace(/--.*$/gm, '');
+    const definitionRegex = /\b(?:create(?:\s+or\s+alter)?|alter)\s+proc(?:edure)?\s+((?:\[[^\]]+\]|[A-Za-z_][\w$#@]*)\s*(?:\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w$#@]*))*)/i;
+    const definitionMatch = cleaned.match(definitionRegex);
+    if (definitionMatch?.[1]) {
+      return definitionMatch[1].replace(/\s+/g, '').trim();
     }
 
-    const execMatch = sql.match(/exec(?:ute)?\s+([\[\]\w\.]+)/i);
-    return execMatch?.[1]?.trim() ?? '';
+    const execMatch = cleaned.match(/\bexec(?:ute)?\s+((?:\[[^\]]+\]|[A-Za-z_][\w$#@]*)\s*(?:\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w$#@]*))*)/i);
+    return execMatch?.[1]?.replace(/\s+/g, '').trim() ?? '';
   }
 
   private extractParameterNames(sql: string): string[] {
     const names: string[] = [];
     const seen = new Set<string>();
 
-    const createPartMatch = sql.match(/create\s+(?:or\s+alter\s+)?proc(?:edure)?[\s\S]*?\bAS\b/i);
-    const parameterSource = createPartMatch ? createPartMatch[0] : sql;
+    const cleaned = sql.replace(/--.*$/gm, '');
+    const definitionPartMatch = cleaned.match(/\b(?:create(?:\s+or\s+alter)?|alter)\s+proc(?:edure)?[\s\S]*?\bAS\b/i);
+    const parameterSource = definitionPartMatch ? definitionPartMatch[0] : cleaned;
 
     const regex = /@([A-Za-z_][A-Za-z0-9_]*)/g;
     let match = regex.exec(parameterSource);
@@ -335,31 +342,31 @@ export class IntegrateSpPageComponent {
       .join('\n');
 
     const setExecVariables = columns
-      .map((column) => `  SET ${column.parameter} = (SELECT [${column.alias}] FROM #ExcelData WHERE RowId = @CurrentRowId);`)
+      .map((column) => `  SET ${column.parameter} = (SELECT [${column.alias}] FROM ExcelData WHERE RowId = @CurrentRowId);`)
       .join('\n');
 
     const execAssignments = columns
-      .map((column) => `    ${column.parameter} = NULLIF(${column.parameter}, '')`)
+      .map((column) => `    ${column.parameter} = ${column.parameter}`)
       .join(',\n');
 
     return [
       '-- Generated SQL loop from Excel upload',
       'SET NOCOUNT ON;',
       '',
-      'IF OBJECT_ID(\'tempdb..#ExcelData\') IS NOT NULL DROP TABLE #ExcelData;',
+      'IF OBJECT_ID(\'ExcelData\') IS NOT NULL DROP TABLE ExcelData;',
       '',
-      'CREATE TABLE #ExcelData (',
+      'CREATE TABLE ExcelData (',
       '  RowId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,',
       `${declareTableColumns}`,
       ');',
       '',
-      `INSERT INTO #ExcelData (${insertColumnList})`,
+      `INSERT INTO ExcelData (${insertColumnList})`,
       'VALUES',
       `${insertRows};`,
       '',
       'DECLARE @CurrentRowId INT = 1;',
       'DECLARE @MaxRowId INT;',
-      'SELECT @MaxRowId = MAX(RowId) FROM #ExcelData;',
+      'SELECT @MaxRowId = MAX(RowId) FROM ExcelData;',
       '',
       `${declareExecVariables}`,
       '',
@@ -373,7 +380,7 @@ export class IntegrateSpPageComponent {
       '  SET @CurrentRowId = @CurrentRowId + 1;',
       'END;',
       '',
-      'DROP TABLE #ExcelData;'
+      'DROP TABLE ExcelData;'
     ].join('\n');
   }
 
