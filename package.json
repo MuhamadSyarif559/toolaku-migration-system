@@ -5,7 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "api:start": "node server/index.js",
-    "build": "NODE_OPTIONS=--openssl-legacy-provider ng build --configuration production",
+    "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
