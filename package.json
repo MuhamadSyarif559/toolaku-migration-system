@@ -1,16 +1,11 @@
-
 {
   "name": "toolaku-migration-system",
   "version": "0.0.0",
-  "private": true,
-  "engines": {
-    "node": "20"
-  },
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "api:start": "node server/index.js",
-    "build": "ng build --configuration production",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -26,6 +21,7 @@
       }
     ]
   },
+  "private": true,
   "dependencies": {
     "@angular/common": "^21.1.0",
     "@angular/compiler": "^21.1.0",
