@@ -423,7 +423,7 @@ export class IntegrateSpPageComponent {
 
   private async parseWorkbook(file: File): Promise<WorkbookData> {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
 
     const sheets = workbook.SheetNames.map((sheetName) => {
       const worksheet = workbook.Sheets[sheetName];
@@ -441,7 +441,8 @@ export class IntegrateSpPageComponent {
     };
   }
 
-  private toSheetData(name: string, matrix: (string | number | boolean | null)[][]): SheetData {
+  // AFTER
+    private toSheetData(name: string, matrix: (string | number | boolean | null | Date)[][]): SheetData {
     const headerRowIndex = matrix.findIndex((row) => row.some((cell) => String(cell ?? '').trim() !== ''));
     if (headerRowIndex < 0) {
       return { name, headers: [], rows: [] };
@@ -453,10 +454,15 @@ export class IntegrateSpPageComponent {
     const rows = matrix
       .slice(headerRowIndex + 1)
       .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
+      // AFTER
       .map((row) => {
         const record: Record<string, unknown> = {};
         headers.forEach((header, index) => {
-          record[header] = row[index] ?? '';
+          const cell = row[index] ?? '';
+          if (header === 'Date' || header === 'DueDate' || header === 'RequireDate' || header === 'PostDate') {
+            console.log(`DATE FIELD >> Header: ${header} | Value: "${cell}" | Type: ${typeof cell}`);
+          }
+          record[header] = this.parseCellValue(cell);
         });
         return record;
       });
@@ -464,7 +470,29 @@ export class IntegrateSpPageComponent {
     return { name, headers, rows };
   }
 
-  private normalizeHeaders(values: (string | number | boolean | null)[]): string[] {
+    private parseCellValue(cell: string | number | boolean | null | Date): unknown {
+      if (cell instanceof Date) {
+        return this.toIsoDateString(cell);
+      }
+    
+      // cellDates: true sometimes passes Date objects that lost their prototype
+      if (typeof cell === 'object' && cell !== null) {
+        const d = new Date(cell as unknown as string);
+        if (!isNaN(d.getTime())) {
+          return this.toIsoDateString(d);
+        }
+      }
+    
+      if (typeof cell === 'number' && cell > 25569 && cell < 60000) {
+        const date = new Date(Math.round((cell - 25569) * 86400 * 1000));
+        return this.toIsoDateString(date);
+      }
+    
+      return cell;
+    }
+
+  // AFTER
+  private normalizeHeaders(values: (string | number | boolean | null | Date)[]): string[] {
     const seen = new Map<string, number>();
 
     return values.map((value, index) => {
@@ -478,6 +506,15 @@ export class IntegrateSpPageComponent {
 
   private isEmptyValue(value: unknown): boolean {
     return value === null || value === undefined || String(value).trim() === '';
+  }
+
+  // AFTER
+  private toIsoDateString(date: Date): string {
+    const adjusted = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+    const yyyy = adjusted.getUTCFullYear();
+    const mm = String(adjusted.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(adjusted.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   private toErrorMessage(error: unknown, fallback: string): string {
