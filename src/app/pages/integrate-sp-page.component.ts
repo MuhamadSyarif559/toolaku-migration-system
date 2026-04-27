@@ -423,13 +423,14 @@ export class IntegrateSpPageComponent {
 
   private async parseWorkbook(file: File): Promise<WorkbookData> {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const workbook = XLSX.read(buffer, { type: 'array' });
 
     const sheets = workbook.SheetNames.map((sheetName) => {
       const worksheet = workbook.Sheets[sheetName];
       const matrix = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(worksheet, {
         header: 1,
-        defval: ''
+        defval: '',
+        raw: true
       });
 
       return this.toSheetData(sheetName, matrix);
@@ -459,10 +460,7 @@ export class IntegrateSpPageComponent {
         const record: Record<string, unknown> = {};
         headers.forEach((header, index) => {
           const cell = row[index] ?? '';
-          if (header === 'Date' || header === 'DueDate' || header === 'RequireDate' || header === 'PostDate') {
-            console.log(`DATE FIELD >> Header: ${header} | Value: "${cell}" | Type: ${typeof cell}`);
-          }
-          record[header] = this.parseCellValue(cell);
+          record[header] = this.parseCellValue(header, cell);
         });
         return record;
       });
@@ -470,24 +468,35 @@ export class IntegrateSpPageComponent {
     return { name, headers, rows };
   }
 
-    private parseCellValue(cell: string | number | boolean | null | Date): unknown {
+    private parseCellValue(header: string, cell: string | number | boolean | null | Date): unknown {
+      if (!this.isDateHeader(header)) {
+        return cell;
+      }
+
       if (cell instanceof Date) {
         return this.toIsoDateString(cell);
       }
-    
-      // cellDates: true sometimes passes Date objects that lost their prototype
-      if (typeof cell === 'object' && cell !== null) {
-        const d = new Date(cell as unknown as string);
-        if (!isNaN(d.getTime())) {
-          return this.toIsoDateString(d);
+
+      if (typeof cell === 'number') {
+        const parsed = XLSX.SSF.parse_date_code(cell);
+        if (parsed && parsed.y && parsed.m && parsed.d) {
+          return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+        }
+        return cell;
+      }
+
+      if (typeof cell === 'string') {
+        const trimmed = cell.trim();
+        if (!trimmed) {
+          return '';
+        }
+
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+          return this.toIsoDateString(parsed);
         }
       }
-    
-      if (typeof cell === 'number' && cell > 25569 && cell < 60000) {
-        const date = new Date(Math.round((cell - 25569) * 86400 * 1000));
-        return this.toIsoDateString(date);
-      }
-    
+
       return cell;
     }
 
@@ -509,11 +518,18 @@ export class IntegrateSpPageComponent {
   }
 
   // AFTER
+  private isDateHeader(header: string): boolean {
+    const normalized = header.replace(/\s+/g, '').toLowerCase();
+    return normalized === 'date'
+      || normalized.endsWith('date')
+      || normalized.endsWith('datetime')
+      || normalized.endsWith('time');
+  }
+
   private toIsoDateString(date: Date): string {
-    const adjusted = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-    const yyyy = adjusted.getUTCFullYear();
-    const mm = String(adjusted.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(adjusted.getUTCDate()).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   }
 
