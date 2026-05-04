@@ -12,6 +12,41 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## Data Cleaning API
+
+The Excel cleaning feature uses the local Node API in `server/index.js` and the Python scripts in `server/python/`.
+
+1. Install Node dependencies:
+
+```bash
+npm install
+```
+
+2. Install Python dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+3. Start the local API:
+
+```bash
+npm run api:start
+```
+
+4. Start the Angular UI in another terminal if needed:
+
+```bash
+npm start
+```
+
+The API listens on `http://localhost:3001`. The frontend data-cleaning page calls:
+
+- `GET /api/data-cleaning/catalog`
+- `POST /api/data-cleaning/run`
+
+To add another cleaner, add a new Python script under `server/python/` and register it in `DATA_CLEANING_TOOLS` inside `server/index.js`.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:

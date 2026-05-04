@@ -145,7 +145,7 @@ const DATA_CLEANING_TOOLS = [
 ];
 
 function getDataCleaningConfig(mode, tempDir, files, requestedOutputName) {
-  const rootDir = path.resolve(__dirname, '..', '..', '..');
+  const scriptDir = path.join(__dirname, 'python');
   const config = DATA_CLEANING_TOOLS.find((item) => item.mode === mode);
   if (!config) {
     throw new Error('Unsupported data cleaning mode.');
@@ -167,7 +167,7 @@ function getDataCleaningConfig(mode, tempDir, files, requestedOutputName) {
   }
 
   return {
-    scriptPath: path.join(rootDir, config.script),
+    scriptPath: path.join(scriptDir, config.script),
     outputPath: path.join(tempDir, sanitizeFileName(requestedOutputName || config.outputName, 'output.xlsx')),
     downloadFileName: sanitizeFileName(requestedOutputName || config.outputName, 'output.xlsx'),
     args: config.buildArgs(
