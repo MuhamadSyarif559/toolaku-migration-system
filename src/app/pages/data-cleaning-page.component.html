@@ -1,0 +1,87 @@
+<main class="page">
+  <section class="panel">
+    <h1>Data Cleaning</h1>
+    <p class="intro">
+      Run local Excel cleaning workflows from the app. The tool list is loaded from the backend, so
+      new cleaners can be added without rebuilding this page structure.
+    </p>
+
+    <p class="message info">{{ serverHint }}</p>
+
+    @if (catalogErrorMessage) {
+      <p class="message error">{{ catalogErrorMessage }}</p>
+    }
+
+    @if (catalogBusy) {
+      <p class="message info">Loading available cleaners...</p>
+    }
+
+    @for (group of groupedTools; track group.category) {
+      <section class="tool-group">
+        <div class="group-head">
+          <h2>{{ group.category }}</h2>
+          <p>{{ group.tools.length }} cleaner{{ group.tools.length === 1 ? '' : 's' }} available</p>
+        </div>
+
+        @for (tool of group.tools; track tool.mode) {
+          <section class="tool-card">
+            <div class="tool-head">
+              <div>
+                <h3>{{ tool.title }}</h3>
+                <p>{{ tool.description }}</p>
+              </div>
+              <span class="mode-chip">{{ tool.mode }}</span>
+            </div>
+
+            <label class="output-box" [for]="'output-' + tool.mode">
+              <span class="label-title">Download File Name</span>
+              <span class="hint">Change the workbook name if needed before running this cleaner.</span>
+              <input
+                [id]="'output-' + tool.mode"
+                type="text"
+                [(ngModel)]="getState(tool.mode).outputFileName"
+                placeholder="output.xlsx"
+              />
+            </label>
+
+            <div class="upload-grid">
+              @for (input of tool.inputs; track input.key) {
+                <label class="upload-box" [for]="tool.mode + '-' + input.key">
+                  <span class="label-title">{{ input.label }}</span>
+                  <span class="hint">{{ input.hint }}</span>
+                  <span class="file-name">
+                    {{ getState(tool.mode).files[input.key]?.name || 'No file selected' }}
+                  </span>
+                  <input
+                    [id]="tool.mode + '-' + input.key"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    (change)="onFileSelected(tool.mode, input.key, $event)"
+                  />
+                </label>
+              }
+            </div>
+
+            @if (getState(tool.mode).errorMessage) {
+              <p class="message error">{{ getState(tool.mode).errorMessage }}</p>
+            }
+
+            @if (getState(tool.mode).infoMessage) {
+              <p class="message success">{{ getState(tool.mode).infoMessage }}</p>
+            }
+
+            @if (getState(tool.mode).stdout) {
+              <pre>{{ getState(tool.mode).stdout }}</pre>
+            }
+
+            <div class="actions">
+              <button type="button" (click)="runTool(tool)" [disabled]="isBusy(tool.mode)">
+                {{ isBusy(tool.mode) ? 'Running...' : 'Run Cleaner' }}
+              </button>
+            </div>
+          </section>
+        }
+      </section>
+    }
+  </section>
+</main>
