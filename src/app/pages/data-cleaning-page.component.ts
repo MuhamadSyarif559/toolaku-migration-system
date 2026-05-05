@@ -181,13 +181,14 @@ export class DataCleaningPageComponent implements OnInit {
       });
 
       const data = (await response.json()) as CleaningApiResponse;
+      state.stdout = [data.stdout?.trim(), data.stderr?.trim()].filter(Boolean).join('\n');
+
       if (!response.ok || !data.ok || !data.outputBase64 || !data.downloadFileName) {
         throw new Error(data.message || 'Data cleaning failed.');
       }
 
       this.downloadBase64File(data.outputBase64, data.downloadFileName);
       state.infoMessage = `${data.message} Downloaded ${data.downloadFileName}`;
-      state.stdout = [data.stdout?.trim(), data.stderr?.trim()].filter(Boolean).join('\n');
     } catch (error) {
       state.errorMessage = this.toErrorMessage(
         error,

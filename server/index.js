@@ -141,6 +141,50 @@ const DATA_CLEANING_TOOLS = [
     buildArgs(savedFiles, outputPath) {
       return ['--source', savedFiles.source, '--output', outputPath];
     }
+  },
+  {
+    mode: 'ar_invoice_item_parent_id',
+    category: 'AR Invoice',
+    title: 'AR Invoice Item Parent ID',
+    description: 'Match ParentID onto AR invoice item rows using the QNE export and a customer invoice reference workbook.',
+    script: 'assign_ar_invoice_item_parent_id.py',
+    outputName: 'ar-invoice-item-with-parent-id.xlsx',
+    requiredFields: ['qne', 'customerTarget', 'itemTarget'],
+    inputs: [
+      { key: 'qne', label: 'QNE Invoice Export', hint: 'QNEINVOICE... customer AR workbook with item rows' },
+      { key: 'customerTarget', label: 'Customer Reference', hint: 'Matched customer/header workbook that already contains the parent IDs' },
+      { key: 'itemTarget', label: 'Item Target Workbook', hint: 'Target AR item workbook that needs ParentID filled' }
+    ],
+    buildArgs(savedFiles, outputPath) {
+      return [
+        '--qne', savedFiles.qne,
+        '--customer-target', savedFiles.customerTarget,
+        '--item-target', savedFiles.itemTarget,
+        '--output', outputPath
+      ];
+    }
+  },
+  {
+    mode: 'ar_invoice_item_invoice_id',
+    category: 'AR Invoice',
+    title: 'AR Invoice Item Invoice ID',
+    description: 'Match InvoiceID onto AR invoice item rows using the QNE export and a customer invoice reference workbook.',
+    script: 'assign_ar_invoice_item_invoice_id.py',
+    outputName: 'ar-invoice-item-with-invoice-id.xlsx',
+    requiredFields: ['qne', 'customerTarget', 'itemTarget'],
+    inputs: [
+      { key: 'qne', label: 'QNE Invoice Export', hint: 'QNEINVOICE... customer AR workbook with item rows' },
+      { key: 'customerTarget', label: 'Customer Reference', hint: 'Matched customer/header workbook that already contains the invoice IDs' },
+      { key: 'itemTarget', label: 'Item Target Workbook', hint: 'Target AR item workbook that needs InvoiceID filled' }
+    ],
+    buildArgs(savedFiles, outputPath) {
+      return [
+        '--qne', savedFiles.qne,
+        '--customer-target', savedFiles.customerTarget,
+        '--item-target', savedFiles.itemTarget,
+        '--output', outputPath
+      ];
+    }
   }
 ];
 
@@ -204,7 +248,11 @@ async function runPythonScript(scriptPath, args) {
         return;
       }
 
-      reject(new Error(stderr.trim() || stdout.trim() || `Python script failed with exit code ${code}.`));
+      const error = new Error(stderr.trim() || stdout.trim() || `Python script failed with exit code ${code}.`);
+      error.stdout = stdout;
+      error.stderr = stderr;
+      error.exitCode = code;
+      reject(error);
     });
   });
 }
@@ -456,9 +504,12 @@ app.post('/api/data-cleaning/run', async (req, res) => {
       stderr
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Data cleaning failed.';
     return res.status(500).json({
       ok: false,
-      message: error instanceof Error ? error.message : 'Data cleaning failed.'
+      message,
+      stdout: error && typeof error === 'object' && 'stdout' in error ? error.stdout : '',
+      stderr: error && typeof error === 'object' && 'stderr' in error ? error.stderr : ''
     });
   } finally {
     if (tempDir) {
